@@ -2,7 +2,9 @@ import test from 'node:test';import assert from 'node:assert/strict';import fs f
 import {ROOT} from '../setup.mjs';import {atomicWrite} from '../lib/io.mjs';
 const root=path.join(ROOT,'tests/runs/atomic-sharing-'+Date.now());fs.mkdirSync(root,{recursive:true});
 async function hold(file,ms){
- const child=spawn('powershell.exe',['-NoProfile','-NonInteractive','-Command',`$held = [IO.File]::Open($env:REVIEW_RENAME_FIXTURE,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::ReadWrite); [Console]::Out.WriteLine('READY'); [Console]::Out.Flush(); Start-Sleep -Milliseconds ${ms}; $held.Dispose()`],{windowsHide:true,env:{...process.env,REVIEW_RENAME_FIXTURE:file},stdio:['ignore','pipe','pipe']});
+ // Warm the .NET wait before readiness: loading Start-Sleep after READY can
+ // consume the entire retry budget on a cold hosted Windows runner.
+ const child=spawn('powershell.exe',['-NoProfile','-NonInteractive','-Command',`[Threading.Thread]::Sleep(0); $held = [IO.File]::Open($env:REVIEW_RENAME_FIXTURE,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::ReadWrite); [Console]::Out.WriteLine('READY'); [Console]::Out.Flush(); [Threading.Thread]::Sleep(${ms}); $held.Dispose()`],{windowsHide:true,env:{...process.env,REVIEW_RENAME_FIXTURE:file},stdio:['ignore','pipe','pipe']});
  const exited=new Promise((resolve,reject)=>{child.once('error',reject);child.once('close',code=>code===0?resolve():reject(new Error('Fixture holder exit '+code)));});
  await new Promise((resolve,reject)=>{child.stdout.on('data',b=>{if(b.toString().includes('READY'))resolve();});child.once('error',reject);child.once('close',code=>reject(new Error('Fixture holder exited before ready '+code)));});return {exited};
 }
