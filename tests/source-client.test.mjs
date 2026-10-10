@@ -1,0 +1,12 @@
+import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';import os from 'node:os';import path from 'node:path';import http from 'node:http';import {spawn} from 'node:child_process';import {fileURLToPath} from 'node:url';
+const client=fileURLToPath(new URL('../source-worker-client.mjs',import.meta.url));
+test('an invalid local identifier is proved unsent, then a short stable ID succeeds exactly once per call',async()=>{
+ const root=fs.mkdtempSync(path.join(os.tmpdir(),'desk-client-'));let requests=0;const server=http.createServer((req,res)=>{requests++;let body='';req.on('data',d=>body+=d);req.on('end',()=>{res.setHeader('Content-Type','application/json');res.end(JSON.stringify({status:'accepted',operationId:JSON.parse(body).operationId}));});});await new Promise(r=>server.listen(0,'127.0.0.1',r));
+ const session=path.join(root,'session.json'),body=path.join(root,'body.json');fs.writeFileSync(session,JSON.stringify({origin:'http://127.0.0.1:'+server.address().port,secret:'isolated-fixture',paperId:'r0067',assignmentId:'fixture',attemptId:'fixture-attempt'}));
+ const call=payload=>new Promise((resolve,reject)=>{fs.writeFileSync(body,JSON.stringify(payload));const p=spawn(process.execPath,[client,'finish','--session='+session,'--body='+body],{windowsHide:true});let stdout='',stderr='';p.stdout.on('data',d=>stdout+=d);p.stderr.on('data',d=>stderr+=d);p.on('error',reject);p.on('close',code=>resolve({code,stdout,stderr}));});
+ try{for(const id of ['a'.repeat(97),'../invalid']){const r=await call({operationId:id});assert.equal(r.code,1);const error=JSON.parse(r.stderr);assert.equal(error.code,'LOCAL_OPERATION_ID_INVALID');assert.equal(error.requestSent,false);assert.equal(error.outboxCreated,false);assert.equal(requests,0);assert.equal(fs.existsSync(path.join(root,'outbox')),false);}
+  const good=await call({operationId:'source-r0067-finish'});assert.equal(good.code,0);assert.equal(requests,1);assert.equal(JSON.parse(fs.readFileSync(path.join(root,'outbox/source-r0067-finish.json'))).status,'accepted');
+  const conflict=await call({operationId:'source-r0067-finish',extra:'changed'});assert.equal(conflict.code,1);assert.notEqual(JSON.parse(conflict.stderr).code,'LOCAL_OPERATION_ID_INVALID');assert.equal(Object.hasOwn(JSON.parse(conflict.stderr),'requestSent'),false);assert.equal(requests,1);
+  const retry=await call({operationId:'source-r0067-finish'});assert.equal(retry.code,0);assert.equal(requests,2);
+ }finally{await new Promise(r=>server.close(r));}
+});

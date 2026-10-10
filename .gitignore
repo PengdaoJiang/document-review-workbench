@@ -1,0 +1,14 @@
+node_modules/
+data/
+work/
+tests/runs/
+tests/evidence/
+config.json
+math-config.json
+production-review.json
+source-executors.json
+blind-executors.json
+*-transport.json
+*.log
+.env*
+__pycache__/

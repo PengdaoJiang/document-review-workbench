@@ -1,0 +1,19 @@
+import fs from 'node:fs';import path from 'node:path';
+import {ROOT} from '../setup.mjs';import {BlindStore} from '../lib/blind-store.mjs';import {ProductionReview} from '../lib/production-review.mjs';import {BlindExecutors} from '../lib/blind-executors.mjs';import {MathCoverage} from '../lib/math-coverage.mjs';import {PaperWriterRegistry} from '../lib/paper-writer-registry.mjs';import {readJSON,writeJSON,hashFile,now} from '../lib/io.mjs';
+export async function blindPoolFixture(root){
+ const out=path.join(root,'paper/outputs');fs.mkdirSync(out,{recursive:true});fs.writeFileSync(path.join(out,'main.tex'),'\\documentclass{article}\n\n\\begin{document}\n\nSynthetic prose without a mathematical proposition.\n\n\\end{document}\n');
+ const store={root:path.join(root,'data'),fixture:true,config:{root:ROOT,papers:{p:{paperId:'p',title:'Synthetic fixture',owner:'old-source',root:path.dirname(out),main:'main.tex',source:{sha256:'synthetic'}}}}};
+ const blind=new BlindStore(store,{leaseRoot:path.join(root,'lease')}),bundle=blind.freeze('p',{wholeDocument:true});
+ const q=Object.assign(Object.create(ProductionReview.prototype),{blind,store,root:path.join(store.root,'production-review'),settings:{paperGroups:[['p']],exhaustiveReview:{enabled:true,revision:1}},enabled:true,v3:true,roles:[],auto:false,stopped:true,kick(){}});
+ for(const d of ['jobs','coverage','freezes'])fs.mkdirSync(path.join(q.root,d),{recursive:true});q.mathCoverage=new MathCoverage(q);
+ const authorityFile=path.join(root,'authority.json');writeJSON(authorityFile,{fixture:true});const authority={path:authorityFile,sha256:hashFile(authorityFile)};
+ const registry=new PaperWriterRegistry(path.join(store.root,'blind-executors/registry'),{probe:async pid=>({pid,parentPid:0,createdAt:'fixture-process'}),probeRoots:async()=>[]});
+ const pool=new BlindExecutors(q,{enabled:true,dataRoot:store.root,neutralRoot:path.join(root,'neutral'),authorization:authority},{auto:false,registry,launcher:async()=>{}});q.blindExecutors=pool;pool.origin='http://127.0.0.1:60000';blind.assertCapability=cap=>pool.assertCapability(cap);
+ await registry.handoff('p',{previousOwner:'old-reviewer',writeRoot:pool.neutralRoot,inputSha256:bundle.manifest.sha256,idleProof:{idle:true},authorization:authority});
+ const j=q.create('review','blind_executor',{roleId:'blind-paper-p',paperId:'p',bundleId:bundle.id});q.materialize(j,blind.issueCapability('reporter',{bundleId:bundle.id,assignmentId:j.id,roleId:j.roleId}));
+ async function activate(){const {attempt}=await pool.claim(j.id),lease=await registry.acquire('p',j.id,attempt.id);await registry.attachThread('p',lease.secret,'fresh-'+attempt.id);await pool.activate('p',lease.secret,{assignmentId:j.id,attemptId:attempt.id});return {attempt,lease,cap:blind.capability(readJSON(path.join(attempt.workspace,'session.json')).capability)};}
+ async function exit(x){await registry.release('p',x.lease.secret,{fixture:true});writeJSON(path.join(x.attempt.runRoot,'supervisor-exit.json'),{released:true,at:now(),processExit:{exitCode:0}});await pool.reconcile(pool.get(j.id));}
+ function inventory(){return {assignmentId:j.id,bundleId:bundle.id,documentSha256:bundle.public.document.sha256,revision:1,final:true,summary:'Synthetic fixture contains no mathematical proposition to check.',nodes:bundle.public.nodes.map(n=>({nodeId:n.nodeId,disposition:'not_applicable',reason:'Synthetic prose and structural markup only.',itemIds:[]})),items:[],spans:[],delivery:{complete:true,proposalIds:[]}};}
+ function coverage(){return {assignmentId:j.id,bundleId:bundle.id,documentSha256:bundle.public.document.sha256,nodes:bundle.public.nodes.map(n=>({nodeId:n.nodeId,status:'read',note:'Read this synthetic neutral node.'})),summary:'All synthetic neutral text was read in this fixture.',delivery:{complete:true,proposalIds:[]}};}
+ return {pool,q,blind,store,bundle,j,out,activate,exit,coverage,inventory};
+}

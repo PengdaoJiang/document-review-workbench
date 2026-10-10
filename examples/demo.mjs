@@ -1,0 +1,12 @@
+import fs from 'node:fs';import path from 'node:path';
+import {setup,ROOT} from '../setup.mjs';import {BlindStore} from '../lib/blind-store.mjs';
+import {sha,writeJSON} from '../lib/io.mjs';
+setup();
+const root=path.join(ROOT,'data/demo-'+Date.now()),paperRoot=path.join(root,'paper'),outputs=path.join(paperRoot,'outputs');fs.mkdirSync(outputs,{recursive:true});
+const quote='x + 1 = 2';fs.writeFileSync(path.join(outputs,'main.tex'),'\\documentclass{article}\n\\begin{document}\n'+quote+'\nEnd of example.\n\\end{document}');
+const store={root,fixture:true,config:{root:ROOT,papers:{demo:{paperId:'demo',owner:'synthetic-owner',root:paperRoot,main:'main.tex',source:{sha256:'synthetic-input'}}}}};
+const blind=new BlindStore(store,{leaseRoot:path.join(root,'leases')});
+const bundle=blind.freeze('demo',{nodes:[{semanticId:'equation-1',target:{file:'main.tex',anchorId:'equation-1',oldText:quote,oldSha256:sha(quote),before:'\\begin{document}\n',after:'\nEnd of example.'}}]});
+const capability=blind.issueCapability('reporter',{bundleId:bundle.id});
+writeJSON(path.join(root,'demo-receipt.json'),{bundleId:bundle.id,documentSha256:bundle.public.document.sha256,capabilityRole:capability.role,nodes:bundle.public.nodes.length,modelInvocations:0,scientificApproval:false});
+console.log(JSON.stringify({demoRoot:root,bundleId:bundle.id,nodes:bundle.public.nodes.length,modelInvocations:0,scientificApproval:false},null,2));
