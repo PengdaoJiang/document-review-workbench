@@ -1,5 +1,11 @@
 # Document review workbench
 
+The [incremental coverage runtime](docs/obligation-coverage.md) adds the current
+claim-level research workflow: exact source binding, independent inventory and
+review, durable ownership, bounded deliveries and recovery of interrupted work.
+It is included alongside the review application with its full neutral dependency
+closure and synthetic regression fixtures.
+
 A local, durable review application with a browser UI, immutable document snapshots, separate source/blind-review roles, human decisions and fenced worker ownership. The full application modules and static interface are exported from a working research workflow; this is not only a collection of example prompts.
 
 ## Offline start

@@ -1,0 +1,4 @@
+* text=auto eol=lf
+# Protocol snapshots are identified by exact source-byte hashes.
+coverage_runtime/** -text
+.github/workflows/* text eol=lf

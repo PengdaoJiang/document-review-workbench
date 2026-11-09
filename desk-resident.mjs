@@ -1,9 +1,9 @@
 // Current-session workstation service. No scheduled task, logon registration,
 // model timer, worker admission change, process termination or lock stealing.
 import fs from 'node:fs';import path from 'node:path';import os from 'node:os';import {fileURLToPath} from 'node:url';import {spawn} from 'node:child_process';import {randomUUID} from 'node:crypto';
-import {readJSON,writeJSON,hashFile,check,now} from './lib/io.mjs';import {createLanGateway} from './lib/lan-gateway.mjs';
+import {readJSON,writeJSON,hashFile,check,now} from './lib/io.mjs';import {createLanGateway,allowedClient} from './lib/lan-gateway.mjs';
 const root=path.dirname(fileURLToPath(import.meta.url)),options=Object.fromEntries(process.argv.slice(2).map(a=>a.split('='))),config=readJSON(options['--config']||path.join(root,'lan-access.json')),data=path.resolve(config.dataRoot),runtimeFile=path.join(data,'resident-runtime.json'),lock=path.join(data,'resident.lock'),nonce=randomUUID();
-check(config.allowedClientCidr==='10.0.0.0/16'&&config.bindAddress==='10.0.0.33'&&config.port===65431&&config.corePort===65431&&data===path.join(root,'data/production'),'Explicit bounded LAN service configuration required');check(Object.values(os.networkInterfaces()).flat().some(x=>x?.address===config.bindAddress),'Configured LAN interface is absent; no wildcard binding');
+check(config.allowedClientCidr==='10.0.0.0/16'&&allowedClient(config.bindAddress)&&config.port===65431&&config.corePort===65431&&data===path.join(root,'data/production'),'Explicit bounded LAN service configuration required');check(Object.values(os.networkInterfaces()).flat().some(x=>x?.address===config.bindAddress),'Configured LAN interface is absent; no wildcard binding');
 const alive=pid=>{if(!Number.isInteger(pid)||pid<=0)return false;try{process.kill(pid,0);return true;}catch(e){if(e.code==='ESRCH')return false;throw e;}};
 if(fs.existsSync(lock)){const bytes=fs.readFileSync(lock),old=JSON.parse(bytes);check(old.service==='paper-review-desk-resident'&&!alive(old.pid),'Existing resident lock has a live or unknown owner');check(fs.readFileSync(lock).equals(bytes),'Resident ownership changed');fs.unlinkSync(lock);}
 const fd=fs.openSync(lock,'wx');fs.writeFileSync(fd,JSON.stringify({service:'paper-review-desk-resident',pid:process.pid,nonce,createdAt:now()}));fs.closeSync(fd);
