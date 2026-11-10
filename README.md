@@ -1,6 +1,8 @@
 # Research Review Workbench
 
-A durable workbench for reconstructing technical documents, reviewing their claims independently, and retaining human decisions across revisions. It separates research progress from execution state so a completed worker does not by itself close a scientific question.
+A research-agent workbench for turning technical documents into explicit research obligations, derivation checks, numerical reproduction and independent review. It retains valid conclusions and unanswered premises across revisions, while using failures in real research runs to improve task decomposition and context/tool interfaces.
+
+The [research workflow](docs/research-workflow.md) connects these mechanisms: research advancement and architecture maintenance form two cooperating levels, with subsequent research tasks adopting and testing workflow changes.
 
 ## Two connected concerns
 
