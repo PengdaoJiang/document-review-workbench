@@ -34,7 +34,7 @@ The main modules are in `coverage_runtime/research_followup/network3_campaign/`:
 | --- | --- |
 | `coverage.mjs`, `coverage-core.mjs` | Revisioned ledger, ownership, admission and decisions |
 | `coverage-scope.mjs`, `source-binding.mjs`, `source-admission.mjs` | Source identity and scope completeness before acceptance |
-| `coverage-reader.mjs`, `coverage-context.mjs` | Bounded navigation, role-scoped context and explicit truncation |
+| `coverage-reader.mjs`, `coverage-context.mjs` | Bounded navigation, role-scoped context and complete resumable reads |
 | `coverage-authoring.mjs`, `coverage-kit.mjs` | Bound candidates that still require independent review |
 | `coverage-batch.mjs`, `coverage-guard.mjs` | Bounded delivery and immutable sidecars |
 | `coverage-recovery.mjs`, `repair-flow.mjs` | Exact assignment recovery and retained history |
@@ -49,6 +49,41 @@ Changed releases, unknown owners, changed source bindings, missing terminal
 receipts and cross-document evidence must fail admission. Constructor evidence
 cannot be relabeled independent review. Valid earlier credit is retained only
 while its exact dependencies remain valid.
+
+## Reduce repeated context without dropping conditions
+
+The reader binds a `snapshotKey` to the selected paper, role, source and candidate.
+It checks that identity again immediately before returning. A changed owner or
+candidate requires reopening the view; a page from an old selection cannot be
+silently combined with a new one.
+
+Each serialized response, including its metadata, must fit within 16 KiB. A large
+`get` returns a content descriptor and a `read` continuation instead of silently
+cutting fields. Chunk responses retain the complete object's hash, offsets and
+next offset. The reader avoids splitting UTF-16 surrogate pairs and accounts for
+UTF-8 response bytes. Reassembling every page recovers the complete selected
+object. Combining several individually bounded responses in one tool output can
+still exceed the caller's budget; the caller must also bound the combined output.
+
+The delta index distinguishes five cases:
+
+| Category | Reason |
+| --- | --- |
+| `new` | No corresponding prior obligation |
+| `changed` | Definition, assessment or exact dependency basis changed or is missing |
+| `dependency_affected` | A transitive dependency changed |
+| `unchanged_accepted` | The supervisor accepted it previously and its current basis is unchanged |
+| `old_unaccepted` | It is unchanged but was never accepted |
+
+For example, an unchanged claim whose supporting assumption changes needs new
+review. An unchanged unresolved claim cannot inherit acceptance. The index is
+navigation, not a new decision: it does not waive the independent completeness
+check of the original source or expose private reviewer bodies to a constructor.
+
+The production history showed both successful retention of earlier accepted
+obligations and renewed context pressure when workers combined oversized reads.
+This motivates the return-size contract without claiming that a smaller rules
+file guarantees equal savings in model tokens, latency or end-to-end cost.
 
 ## Public verification
 
